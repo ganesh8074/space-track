@@ -1,0 +1,49 @@
+{
+  "flats": {
+    "A1": {
+      "size": "",
+      "sections": {
+        "Wardrobe": [
+          {
+            "component": "Loft doors",
+            "qty": 1,
+            "length": "2000",
+            "width": "100",
+            "status": "Pending",
+            "deadline": "2025-07-31",
+            "assignee": "engineer",
+            "photo": null
+          }
+        ]
+      },
+      "tasks": [
+        {
+          "title": "kitchen",
+          "desc": "kitchen work ",
+          "assigned": "engineer",
+          "due": "2025-07-31",
+          "status": "Pending",
+          "photo": null
+        }
+      ],
+      "created_by": "admin"
+    },
+    "A2": {
+      "size": "",
+      "sections": {},
+      "tasks": [],
+      "created_by": "admin"
+    }
+  },
+  "tasks": [
+    {
+      "flat": "A1",
+      "title": "kitchen",
+      "assigned_to": "engineer",
+      "note": "finish kuitchne",
+      "status": "Pending",
+      "timestamp": "2025-07-31 17:03:11",
+      "proof": null
+    }
+  ]
+}
