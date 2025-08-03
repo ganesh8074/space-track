@@ -272,7 +272,7 @@ if role == "Engineer":
         for col in unit_cols:
             if col not in df.columns:
                 df[col] = "Not Started"
-        show_df = df[['FlatID', 'Status'] + unit_cols].copy()
+        show_df = df[['FlatID'] + unit_cols].copy()
         st.dataframe(show_df)
         # Dropdown-based unit status update
         st.markdown("**Update Unit Status**")
