@@ -113,6 +113,7 @@ st.markdown("""
 
 import pandas as pd
 import os
+import json
 from utils.google_sheets import read_sheet, write_sheet
 project_list = ["Project 1"]
 
@@ -120,9 +121,6 @@ with st.sidebar:
     st.success(f"Current Role: {role}")
     logout_button()
     if role == "Customer":
-        # Ensure project_list is always a list of strings
-        project_list_path = "data/projects.csv"
-        import csv
         # Google Sheets: Projects tab
         projects_df = read_sheet('Projects')
         if not projects_df.empty:
@@ -151,8 +149,6 @@ with st.sidebar:
         st.header("Engineer Navigation")
         # Project management (CRUD)
         with st.expander("Manage Projects"):
-            project_list_path = "data/projects.csv"
-            import csv
             # Google Sheets: Projects tab
             projects_df = read_sheet('Projects')
             if projects_df.empty:
@@ -293,12 +289,12 @@ if role == "Engineer":
                                 write_sheet(flats_tab, df)
                                 st.success(f"Unit statuses for Flat {selected_flat_for_update} updated.")
                                 st.rerun()
-        # Tasks summary for all flats
+        # Tasks summary for all flats (from Google Sheets)
         all_tasks = []
         for flat in df['FlatID']:
-            task_path = f"data/flat_{flat}_tasks.csv"
-            if os.path.exists(task_path):
-                task_df = pd.read_csv(task_path)
+            task_tab = f"Flat_{flat}_tasks"
+            task_df = read_sheet(task_tab)
+            if not task_df.empty:
                 all_tasks.append(task_df)
         if all_tasks:
             all_tasks_df = pd.concat(all_tasks, ignore_index=True)
@@ -308,14 +304,13 @@ if role == "Engineer":
             st.markdown(f"**Completed Tasks:** {completed_tasks}")
             st.markdown(f"**Pending Tasks:** {total_tasks - completed_tasks}")
             st.progress(completed_tasks / total_tasks if total_tasks else 0)
-        # Total material size for all flats
+        # Total material size for all flats (from Google Sheets)
         total_size = 0
         for flat in df['FlatID']:
-            mat_path = f"data/flat_{flat}_materials.csv"
-            if os.path.exists(mat_path):
-                mat_df = pd.read_csv(mat_path)
-                if 'Size' in mat_df.columns:
-                    total_size += mat_df['Size'].replace(np.nan, 0).astype(float).sum()
+            mat_tab = f"Flat_{flat}_materials"
+            mat_df = read_sheet(mat_tab)
+            if not mat_df.empty and 'Size' in mat_df.columns:
+                total_size += mat_df['Size'].replace(np.nan, 0).astype(float).sum()
         st.markdown(f"**Total Material Size (All Flats):** {total_size}")
         # If a flat is selected, show its details
         selected_flat = st.session_state.get("engineer_selected_flat")
@@ -542,13 +537,8 @@ if role == "Engineer":
 
 
             # --- Installation Status ---
-            inst_path = f"data/flat_{selected_flat}_installation.csv"
-            if os.path.exists(inst_path):
-                inst_df = pd.read_csv(inst_path)
-                st.markdown("**Installation Status:**")
-                st.dataframe(inst_df)
-            else:
-                st.info("No installation data for this flat.")
+            # Installation status can be migrated to Google Sheets if needed
+            st.info("No installation data for this flat.")
     else:
         st.warning("No flats found. Please add a flat first.")
 elif role == "Customer":
@@ -640,76 +630,5 @@ elif role == "Customer":
                 st.warning("Selected flat not found in project data. Please check your selection.")
         # End of if selected_flat
     # End of if not df.empty
-        # Per-flat progress table
-        st.markdown("### Flat-wise Progress")
-        st.dataframe(df[['FlatID', 'Status']])
-        # If a flat is selected, show its details
-        selected_flat = st.session_state.get("customer_selected_flat")
-        if selected_flat and selected_flat != "No Flats":
-            # Compare as stripped strings to avoid type/whitespace mismatch
-            flat_df = df[df["FlatID"].astype(str).str.strip() == str(selected_flat).strip()]
-            if not flat_df.empty:
-                st.divider()
-                st.subheader(f"Details for Flat {selected_flat}")
-                # flat_row = flat_df.iloc[0]
-                # st.markdown(f"**Owner:** {flat_row['Owner']}")
-                # st.markdown(f"**Designer:** {flat_row['Designer']}")
-                # st.markdown(f"**Engineer:** {flat_row['Engineer']}")
-                # st.markdown(f"**Status:** {flat_row['Status']}")
-                # --- Materials Used ---
-                mat_tab = f"Flat_{selected_flat}_materials"
-                mat_df = read_sheet(mat_tab)
-                if not mat_df.empty:
-                    st.markdown("**Materials Used:**")
-                    st.dataframe(mat_df)
-                else:
-                    st.info("No materials data for this flat.")
-                # --- Flat Task Progress ---
-                task_tab = f"Flat_{selected_flat}_tasks"
-                task_df = read_sheet(task_tab)
-                if not task_df.empty:
-                    completed_tasks = task_df[task_df['Status'].str.lower() == 'completed']
-                    pending_tasks = task_df[task_df['Status'].str.lower() != 'completed']
-                    st.markdown(f"**Tasks Completed:** {len(completed_tasks)} / {len(task_df)}")
-                    st.progress(len(completed_tasks) / len(task_df) if len(task_df) else 0)
-                    st.markdown("**Completed Tasks:**")
-                    st.dataframe(completed_tasks[['Task', 'AssignedTo', 'Status']])
-                    st.markdown("**Pending Tasks:**")
-                    st.dataframe(pending_tasks[['Task', 'AssignedTo', 'Status']])
-                else:
-                    st.info("No tasks data for this flat.")
-                # --- Moodboards ---
-                st.markdown("**Moodboards:**")
-                modules = ["Wardrobe", "Kitchen", "TV Unit", "Cupboard", "Bedroom", "Crockery", "Middle Box"]
-                for module in modules:
-                    gallery_path = f"data/moodboards/{selected_flat}_{module}"
-                    if os.path.exists(gallery_path):
-                        files = [f for f in os.listdir(gallery_path) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
-                        if files:
-                            st.markdown(f"*{module}*")
-                            cols = st.columns(3)
-                            for i, img in enumerate(files):
-                                with cols[i % 3]:
-                                    st.image(os.path.join(gallery_path, img), use_container_width=True)
-                # --- Requirements ---
-                # req_path = f"data/flat_{selected_flat}_requirements.csv"
-                # if os.path.exists(req_path):
-                #     req_df = pd.read_csv(req_path)
-                #     st.markdown("**Requirements:**")
-                #     st.dataframe(req_df)
-                # else:
-                #     st.info("No requirements data for this flat.")
-                # # --- Installation Status ---
-                # inst_path = f"data/flat_{selected_flat}_installation.csv"
-                # if os.path.exists(inst_path):
-                #     inst_df = pd.read_csv(inst_path)
-                #     st.markdown("**Installation Status:**")
-                #     st.dataframe(inst_df)
-                # else:
-                #     st.info("No installation data for this flat.")
-            else:
-                st.warning("Selected flat not found in project data. Please check your selection.")
-        # End of if selected_flat
-    else:
-        st.warning("No flats found for this project. Please ask the engineer to add a flat.")
+        # ...existing code...
 ## Remove Admin and Designer dashboards, only allow Customer and Engineer
