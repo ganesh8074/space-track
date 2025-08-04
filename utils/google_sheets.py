@@ -66,8 +66,6 @@ def read_sheet(tab_name, sheet_name=SHEET_NAME):
 
         if elapsed > 2:  # Customize the threshold as needed
             st.info(f"Loaded {len(df)} rows from '{tab_name}' in {elapsed:.1f}s")
-        elif df.empty:
-            st.warning(f"No data found in sheet '{tab_name}'.")
         return df
 
 def write_sheet(tab_name, df, sheet_name=SHEET_NAME):
