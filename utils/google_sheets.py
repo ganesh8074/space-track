@@ -34,7 +34,12 @@ def get_gspread_client():
 
 def get_worksheet(sheet_name=SHEET_NAME, tab_name='Sheet1'):
     client = get_gspread_client()
-    sheet = client.open(sheet_name)
+    try:
+        sheet = client.open(sheet_name)
+    except gspread.exceptions.APIError as e:
+        import streamlit as st
+        st.error(f"Google Sheets API error: {e}. Please check sheet name, sharing, and API limits.")
+        return None
     try:
         worksheet = sheet.worksheet(tab_name)
     except gspread.exceptions.WorksheetNotFound:
@@ -43,6 +48,8 @@ def get_worksheet(sheet_name=SHEET_NAME, tab_name='Sheet1'):
 
 def read_sheet(tab_name, sheet_name=SHEET_NAME):
     ws = get_worksheet(sheet_name, tab_name)
+    if ws is None:
+        return pd.DataFrame()
     data = ws.get_all_records()
     if not data:
         return pd.DataFrame()
@@ -50,6 +57,8 @@ def read_sheet(tab_name, sheet_name=SHEET_NAME):
 
 def write_sheet(tab_name, df, sheet_name=SHEET_NAME):
     ws = get_worksheet(sheet_name, tab_name)
+    if ws is None:
+        return
     ws.clear()
     if df.empty:
         return
