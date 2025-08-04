@@ -3,20 +3,34 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import os
 
-# Set up the Google Sheets API client
-# Place your credentials file in the root directory and set this path
-CREDENTIALS_FILE = os.environ.get('GOOGLE_SHEETS_CREDS', 'google-credentials.json')
 SHEET_NAME = os.environ.get('GOOGLE_SHEETS_NAME', 'Spacecraft-streamlit')
 
-scope = [
-    'https://spreadsheets.google.com/feeds',
-    'https://www.googleapis.com/auth/drive',
-]
-
+# Streamlit Cloud: load credentials from st.secrets if available
 def get_gspread_client():
+    import json
+    try:
+        import streamlit as st
+        if "GOOGLE_SERVICE_ACCOUNT_JSON" in st.secrets:
+            creds_dict = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT_JSON"])
+            scope = [
+                'https://spreadsheets.google.com/feeds',
+                'https://www.googleapis.com/auth/drive',
+            ]
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+            client = gspread.authorize(creds)
+            return client
+    except ImportError:
+        pass
+    # Fallback to file-based credentials (for local dev)
+    CREDENTIALS_FILE = os.environ.get('GOOGLE_SHEETS_CREDS', 'google-credentials.json')
+    scope = [
+        'https://spreadsheets.google.com/feeds',
+        'https://www.googleapis.com/auth/drive',
+    ]
     creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
     client = gspread.authorize(creds)
     return client
+
 
 def get_worksheet(sheet_name=SHEET_NAME, tab_name='Sheet1'):
     client = get_gspread_client()
