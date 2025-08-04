@@ -110,9 +110,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+
 import pandas as pd
 import os
-flats_path = "data/flats.csv"
+from utils.google_sheets import read_sheet, write_sheet
 project_list = ["Project 1"]
 
 with st.sidebar:
@@ -122,25 +123,23 @@ with st.sidebar:
         # Ensure project_list is always a list of strings
         project_list_path = "data/projects.csv"
         import csv
-        if os.path.exists(project_list_path):
-            with open(project_list_path, newline='') as f:
-                reader = csv.reader(f)
-                project_list = [row[0] for row in reader if row]
+        # Google Sheets: Projects tab
+        projects_df = read_sheet('Projects')
+        if not projects_df.empty:
+            project_list = [str(p) for p in projects_df['Project'].tolist() if p and str(p).strip() != ""]
         else:
             project_list = ["No Projects"]
-        project_list = [str(p) for p in project_list if p and str(p).strip() != ""]
         if not project_list:
             project_list = ["No Projects"]
         selected_project = st.selectbox("Select Project", project_list, key="customer_project")
         import re
         def safe_project_name(name):
             return re.sub(r'[^a-zA-Z0-9_\-]', '_', name)
-        project_file = f"data/flats_{safe_project_name(selected_project)}.csv"
-        if os.path.exists(project_file):
-            df = pd.read_csv(project_file)
-            # Always treat FlatID as string and strip whitespace
-            df["FlatID"] = df["FlatID"].astype(str).str.strip()
-            flat_list = [f for f in df["FlatID"].tolist() if f and f.strip() != ""]
+        flats_tab = f"Flats_{safe_project_name(selected_project)}"
+        flats_df = read_sheet(flats_tab)
+        if not flats_df.empty:
+            flats_df["FlatID"] = flats_df["FlatID"].astype(str).str.strip()
+            flat_list = [f for f in flats_df["FlatID"].tolist() if f and f.strip() != ""]
             if not flat_list:
                 flat_list = ["No Flats"]
             selected_flat = st.selectbox("Select Flat", flat_list, key="customer_flat")
@@ -154,23 +153,20 @@ with st.sidebar:
         with st.expander("Manage Projects"):
             project_list_path = "data/projects.csv"
             import csv
-            if os.path.exists(project_list_path):
-                with open(project_list_path, newline='') as f:
-                    reader = csv.reader(f)
-                    project_list = [row[0] for row in reader if row]
-            else:
+            # Google Sheets: Projects tab
+            projects_df = read_sheet('Projects')
+            if projects_df.empty:
                 project_list = ["Project 1"]
-                with open(project_list_path, 'w', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(["Project 1"])
+                projects_df = pd.DataFrame({'Project': project_list})
+                write_sheet('Projects', projects_df)
+            else:
+                project_list = [str(p) for p in projects_df['Project'].tolist() if p and str(p).strip() != ""]
             new_project = st.text_input("Add New Project", key="engineer_new_project")
             if st.button("Add Project", key="engineer_add_project") and new_project:
                 if new_project not in project_list:
                     project_list.append(new_project)
-                    with open(project_list_path, 'w', newline='') as f:
-                        writer = csv.writer(f)
-                        for p in project_list:
-                            writer.writerow([p])
+                    projects_df = pd.DataFrame({'Project': project_list})
+                    write_sheet('Projects', projects_df)
                     st.success(f"Project '{new_project}' added.")
                     st.rerun()
             del_project = st.selectbox("Delete Project", [None] + project_list, key="engineer_del_project") if project_list else None
@@ -179,10 +175,8 @@ with st.sidebar:
                 if st.button("Delete Project", key="engineer_delete_project", type="primary", help="This will permanently delete the project.", use_container_width=True):
                     if confirm_proj:
                         project_list = [p for p in project_list if p != del_project]
-                        with open(project_list_path, 'w', newline='') as f:
-                            writer = csv.writer(f)
-                            for p in project_list:
-                                writer.writerow([p])
+                        projects_df = pd.DataFrame({'Project': project_list})
+                        write_sheet('Projects', projects_df)
                         st.success(f"Project '{del_project}' deleted.")
                         st.rerun()
             st.markdown("""
@@ -202,9 +196,9 @@ with st.sidebar:
         import re
         def safe_project_name(name):
             return re.sub(r'[^a-zA-Z0-9_\-]', '_', name)
-        project_file = f"data/flats_{safe_project_name(selected_project)}.csv"
-        if os.path.exists(project_file):
-            df = pd.read_csv(project_file, dtype={"FlatID": str})
+        flats_tab = f"Flats_{safe_project_name(selected_project)}"
+        df = read_sheet(flats_tab)
+        if not df.empty:
             df["FlatID"] = df["FlatID"].astype(str).str.strip()
             flat_list = [f for f in df["FlatID"].tolist() if f and f.strip() != "" and f.strip().lower() != "none"]
         else:
@@ -216,7 +210,7 @@ with st.sidebar:
             if st.button("Add Flat", key="engineer_add_flat") and new_flat:
                 if new_flat not in flat_list:
                     df = pd.concat([df, pd.DataFrame([[new_flat, '', '', '', 'Design']], columns=df.columns)], ignore_index=True)
-                    df.to_csv(project_file, index=False)
+                    write_sheet(flats_tab, df)
                     st.rerun()
             del_flat = st.selectbox("Delete Flat", [None] + flat_list, key="engineer_del_flat") if flat_list else None
             if del_flat and del_flat != None:
@@ -224,7 +218,7 @@ with st.sidebar:
                 if st.button("Delete Flat", key="engineer_delete_flat", type="primary", help="This will permanently delete the flat.", use_container_width=True):
                     if confirm_flat:
                         df = df[df["FlatID"] != del_flat]
-                        df.to_csv(project_file, index=False)
+                        write_sheet(flats_tab, df)
                         st.success(f"Flat '{del_flat}' deleted.")
                         st.rerun()
             st.markdown("""
@@ -252,9 +246,9 @@ if role == "Engineer":
     import re
     def safe_project_name(name):
         return re.sub(r'[^a-zA-Z0-9_\-]', '_', name)
-    project_file = f"data/flats_{safe_project_name(selected_project)}.csv"
-    if os.path.exists(project_file):
-        df = pd.read_csv(project_file, dtype={"FlatID": str})
+    flats_tab = f"Flats_{safe_project_name(selected_project)}"
+    df = read_sheet(flats_tab)
+    if not df.empty:
         df["FlatID"] = df["FlatID"].astype(str).str.strip()
         # Project dashboard: progress for each flat
         st.subheader("Project Progress (All Flats)")
@@ -295,7 +289,8 @@ if role == "Engineer":
                             if confirm:
                                 for col in unit_cols:
                                     df.at[idx, col] = new_statuses[col]
-                                df.to_csv(project_file, index=False)
+                                # Save updated unit statuses to Google Sheets
+                                write_sheet(flats_tab, df)
                                 st.success(f"Unit statuses for Flat {selected_flat_for_update} updated.")
                                 st.rerun()
         # Tasks summary for all flats
@@ -330,17 +325,16 @@ if role == "Engineer":
             st.divider()
             st.subheader(f"Details for Flat {selected_flat}")
             # --- Materials Required (CRUD + Duplicate), split by 4 sections ---
-            mat_path = f"data/flat_{selected_flat}_materials.csv"
+            mat_tab = f"Flat_{selected_flat}_materials"
             mat_columns = ["Section","Material","L","B","H","Size"]
-            if os.path.exists(mat_path):
-                mat_df = pd.read_csv(mat_path)
-                # Ensure all required columns exist
+            mat_df = read_sheet(mat_tab)
+            if mat_df.empty:
+                mat_df = pd.DataFrame(columns=mat_columns)
+            else:
                 for col in mat_columns:
                     if col not in mat_df.columns:
                         mat_df[col] = ""
                 mat_df = mat_df[mat_columns]
-            else:
-                mat_df = pd.DataFrame(columns=mat_columns)
             st.markdown("### Materials Required")
             section_materials = {
                 "Wardrobe": ["Loft Doors", "Hinges", "Handles (Qty Only)", "Expo Piece", "Frame-Biding"],
@@ -397,7 +391,7 @@ if role == "Engineer":
                 if st.button("Add Material", key=f"add_mat_btn_unified_{section}_{material}_{l}_{b}_{h}"):
                     new_row = pd.DataFrame([[section, material, l, b, h, size]], columns=["Section","Material","L","B","H","Size"])
                     mat_df = pd.concat([mat_df, new_row], ignore_index=True)
-                    mat_df.to_csv(mat_path, index=False)
+                    write_sheet(mat_tab, mat_df)
                     st.rerun()
             # Filterable display of all materials with delete button per row
             st.markdown("**All Materials**")
@@ -475,7 +469,7 @@ if role == "Engineer":
                             idx = mat_df.index[(mat_df['Section'] == row['Section']) & (mat_df['Material'] == row['Material']) & (mat_df['L'] == row['L']) & (mat_df['B'] == row['B']) & (mat_df['H'] == row['H']) & (mat_df['Size'] == row['Size'])]
                             if not idx.empty:
                                 mat_df = mat_df.drop(idx[0]).reset_index(drop=True)
-                                mat_df.to_csv(mat_path, index=False)
+                                write_sheet(mat_tab, mat_df)
                                 st.rerun()
             else:
                 st.info("No materials to display for this filter.")
@@ -488,27 +482,25 @@ if role == "Engineer":
                 st.markdown("**Duplicate Materials from Another Flat**")
                 dup_flat = st.selectbox("Select Flat to Copy Materials From", [f for f in df['FlatID'] if f != selected_flat], key="dup_mat_flat")
                 if st.button("Duplicate Materials", key="dup_mat_btn"):
-                    src_path = f"data/flat_{dup_flat}_materials.csv"
-                    if os.path.exists(src_path):
-                        src_df = pd.read_csv(src_path)
-                        src_df.to_csv(mat_path, index=False)
-                        st.success(f"Materials duplicated from {dup_flat} to {selected_flat}")
-                        st.rerun()
+                    src_tab = f"Flat_{dup_flat}_materials"
+                    src_df = read_sheet(src_tab)
+                    write_sheet(mat_tab, src_df)
+                    st.success(f"Materials duplicated from {dup_flat} to {selected_flat}")
+                    st.rerun()
 
             # --- Flat Task Progress (Card CRUD) ---
             st.markdown("<hr style='border:1.5px solid #a5b4fc;margin:1.5em 0 1em 0;'>", unsafe_allow_html=True)
             st.markdown("<span style='font-size:1.3em;font-weight:700;color:#2563eb;'>Tasks</span>", unsafe_allow_html=True)
-            task_path = f"data/flat_{selected_flat}_tasks.csv"
+            task_tab = f"Flat_{selected_flat}_tasks"
             task_columns = ["Task","Details","AssignedTo","Status"]
-            if os.path.exists(task_path):
-                task_df = pd.read_csv(task_path)
-                # Ensure all required columns exist
+            task_df = read_sheet(task_tab)
+            if task_df.empty:
+                task_df = pd.DataFrame(columns=task_columns)
+            else:
                 for col in task_columns:
                     if col not in task_df.columns:
                         task_df[col] = ""
                 task_df = task_df[task_columns]
-            else:
-                task_df = pd.DataFrame(columns=task_columns)
             # Display each task as a card with delete button
             if not task_df.empty:
                 for i, row in task_df.iterrows():
@@ -527,7 +519,7 @@ if role == "Engineer":
                         if st.button("Delete", key=f"delete_task_{i}", help="Delete this task", use_container_width=True):
                             if confirm:
                                 task_df = task_df.drop(i).reset_index(drop=True)
-                                task_df.to_csv(task_path, index=False)
+                                write_sheet(task_tab, task_df)
                                 st.rerun()
             else:
                 st.info("No tasks added yet.")
@@ -544,7 +536,7 @@ if role == "Engineer":
                 if submitted and task:
                     new_row = pd.DataFrame([[task, details, assigned_to, status]], columns=task_df.columns)
                     task_df = pd.concat([task_df, new_row], ignore_index=True)
-                    task_df.to_csv(task_path, index=False)
+                    write_sheet(task_tab, task_df)
                     st.success("Task added!")
                     st.rerun()
 
@@ -564,9 +556,9 @@ elif role == "Customer":
     import re
     def safe_project_name(name):
         return re.sub(r'[^a-zA-Z0-9_\-]', '_', name)
-    project_file = f"data/flats_{safe_project_name(selected_project)}.csv"
-    if os.path.exists(project_file):
-        df = pd.read_csv(project_file)
+    flats_tab = f"Flats_{safe_project_name(selected_project)}"
+    df = read_sheet(flats_tab)
+    if not df.empty:
         # Project dashboard: progress for each flat
         st.subheader("Project Progress (All Flats)")
         status_counts = df['Status'].str.lower().value_counts()
@@ -594,17 +586,17 @@ elif role == "Customer":
                 # st.markdown(f"**Engineer:** {flat_row['Engineer']}")
                 # st.markdown(f"**Status:** {flat_row['Status']}")
                 # --- Materials Used ---
-                mat_path = f"data/flat_{selected_flat}_materials.csv"
-                if os.path.exists(mat_path):
-                    mat_df = pd.read_csv(mat_path)
+                mat_tab = f"Flat_{selected_flat}_materials"
+                mat_df = read_sheet(mat_tab)
+                if not mat_df.empty:
                     st.markdown("**Materials Used:**")
                     st.dataframe(mat_df)
                 else:
                     st.info("No materials data for this flat.")
                 # --- Flat Task Progress ---
-                task_path = f"data/flat_{selected_flat}_tasks.csv"
-                if os.path.exists(task_path):
-                    task_df = pd.read_csv(task_path)
+                task_tab = f"Flat_{selected_flat}_tasks"
+                task_df = read_sheet(task_tab)
+                if not task_df.empty:
                     completed_tasks = task_df[task_df['Status'].str.lower() == 'completed']
                     pending_tasks = task_df[task_df['Status'].str.lower() != 'completed']
                     st.markdown(f"**Tasks Completed:** {len(completed_tasks)} / {len(task_df)}")
@@ -646,6 +638,78 @@ elif role == "Customer":
                 #     st.info("No installation data for this flat.")
             else:
                 st.warning("Selected flat not found in project data. Please check your selection.")
+        # End of if selected_flat
+    # End of if not df.empty
+        # Per-flat progress table
+        st.markdown("### Flat-wise Progress")
+        st.dataframe(df[['FlatID', 'Status']])
+        # If a flat is selected, show its details
+        selected_flat = st.session_state.get("customer_selected_flat")
+        if selected_flat and selected_flat != "No Flats":
+            # Compare as stripped strings to avoid type/whitespace mismatch
+            flat_df = df[df["FlatID"].astype(str).str.strip() == str(selected_flat).strip()]
+            if not flat_df.empty:
+                st.divider()
+                st.subheader(f"Details for Flat {selected_flat}")
+                # flat_row = flat_df.iloc[0]
+                # st.markdown(f"**Owner:** {flat_row['Owner']}")
+                # st.markdown(f"**Designer:** {flat_row['Designer']}")
+                # st.markdown(f"**Engineer:** {flat_row['Engineer']}")
+                # st.markdown(f"**Status:** {flat_row['Status']}")
+                # --- Materials Used ---
+                mat_tab = f"Flat_{selected_flat}_materials"
+                mat_df = read_sheet(mat_tab)
+                if not mat_df.empty:
+                    st.markdown("**Materials Used:**")
+                    st.dataframe(mat_df)
+                else:
+                    st.info("No materials data for this flat.")
+                # --- Flat Task Progress ---
+                task_tab = f"Flat_{selected_flat}_tasks"
+                task_df = read_sheet(task_tab)
+                if not task_df.empty:
+                    completed_tasks = task_df[task_df['Status'].str.lower() == 'completed']
+                    pending_tasks = task_df[task_df['Status'].str.lower() != 'completed']
+                    st.markdown(f"**Tasks Completed:** {len(completed_tasks)} / {len(task_df)}")
+                    st.progress(len(completed_tasks) / len(task_df) if len(task_df) else 0)
+                    st.markdown("**Completed Tasks:**")
+                    st.dataframe(completed_tasks[['Task', 'AssignedTo', 'Status']])
+                    st.markdown("**Pending Tasks:**")
+                    st.dataframe(pending_tasks[['Task', 'AssignedTo', 'Status']])
+                else:
+                    st.info("No tasks data for this flat.")
+                # --- Moodboards ---
+                st.markdown("**Moodboards:**")
+                modules = ["Wardrobe", "Kitchen", "TV Unit", "Cupboard", "Bedroom", "Crockery", "Middle Box"]
+                for module in modules:
+                    gallery_path = f"data/moodboards/{selected_flat}_{module}"
+                    if os.path.exists(gallery_path):
+                        files = [f for f in os.listdir(gallery_path) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+                        if files:
+                            st.markdown(f"*{module}*")
+                            cols = st.columns(3)
+                            for i, img in enumerate(files):
+                                with cols[i % 3]:
+                                    st.image(os.path.join(gallery_path, img), use_container_width=True)
+                # --- Requirements ---
+                # req_path = f"data/flat_{selected_flat}_requirements.csv"
+                # if os.path.exists(req_path):
+                #     req_df = pd.read_csv(req_path)
+                #     st.markdown("**Requirements:**")
+                #     st.dataframe(req_df)
+                # else:
+                #     st.info("No requirements data for this flat.")
+                # # --- Installation Status ---
+                # inst_path = f"data/flat_{selected_flat}_installation.csv"
+                # if os.path.exists(inst_path):
+                #     inst_df = pd.read_csv(inst_path)
+                #     st.markdown("**Installation Status:**")
+                #     st.dataframe(inst_df)
+                # else:
+                #     st.info("No installation data for this flat.")
+            else:
+                st.warning("Selected flat not found in project data. Please check your selection.")
+        # End of if selected_flat
     else:
         st.warning("No flats found for this project. Please ask the engineer to add a flat.")
 ## Remove Admin and Designer dashboards, only allow Customer and Engineer
