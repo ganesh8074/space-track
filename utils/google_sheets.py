@@ -46,6 +46,9 @@ def get_worksheet(sheet_name=SHEET_NAME, tab_name='Sheet1'):
         worksheet = sheet.add_worksheet(title=tab_name, rows="1000", cols="20")
     return worksheet
 
+import streamlit as st
+
+@st.cache_data(ttl=60)
 def read_sheet(tab_name, sheet_name=SHEET_NAME):
     ws = get_worksheet(sheet_name, tab_name)
     if ws is None:
