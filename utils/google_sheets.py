@@ -66,3 +66,8 @@ def write_sheet(tab_name, df, sheet_name=SHEET_NAME):
     if df.empty:
         return
     ws.update([df.columns.values.tolist()] + df.values.tolist())
+    # Clear the cache for read_sheet so UI updates immediately
+    try:
+        read_sheet.clear()
+    except Exception:
+        pass
